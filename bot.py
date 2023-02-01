@@ -2,8 +2,8 @@ import logging
 import os
 import sqlite3
 import re
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ApplicationBuilder, ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,9 +17,13 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
+keyb = [["Portfolio", "Market"]]
+reply_markup = ReplyKeyboardMarkup(keyb, resize_keyboard=True, one_time_keyboard=False)
 
-def start(update, context):
+
+async def start(update, context):
     tg_id = update.message.chat_id
+    chat_id = update.effective_chat.id
     msg = "Welcome to <b>Endless Futures</b>\n\n"
     msg = msg + "IMPORTANT - its all virtual futures." 
     sql = sqlite3.connect('endless.db')
@@ -31,20 +35,23 @@ def start(update, context):
         sql.commit()  
         db.execute("INSERT INTO balances(user_id, amount, currency) VALUES(?, ?, ?)", (str(tg_id), 1000, 'USD'))
         sql.commit()   
-        msg = msg + "\n\nGift for you 1000 USD for playing\n\nEnjoy!"          
-    send_message_keyb(update, context, msg)       
-    sql.close()
+        msg = msg + "\n\nGift for you 1000 USD for playing\n\nEnjoy!"    
+    sql.close()      
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)        
 
 
-def help(update, context):
+async def help(update, context):
     msg = "<b>Help</b>\n\n"
+    chat_id = update.effective_chat.id
     msg = msg + "The futures trading simulator is absolutely free to use.\n"\
         "This bot shows the possibilities of working with futures - trading, calculating variation margin.\n"\
         "All futures are settled, the contract is based on cryptocurrency."
-    send_message_keyb(update, context, msg) 
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)
 
-def portfolio(update, context):
+
+async def portfolio(update, context):
     tg_id = update.message.chat_id
+    chat_id = update.effective_chat.id
     sql = sqlite3.connect('endless.db')
     db = sql.cursor()
     msg = "<b>Portfolio</b>\n\n"
@@ -68,12 +75,13 @@ def portfolio(update, context):
         msg = msg +  "<i>Planning Variation margin (VM): " + format(diff, ".2f") + " " + balance[4] + "</i>\n"
         last_date = balance[5]
     msg = msg + "\nPrice timestamp " + last_date
-    send_message_keyb(update, context, msg) 
-    sql.close()    
+    sql.close() 
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)
+       
 
-
-def futures(update, context):
+async def futures(update, context):
     tg_id = update.message.chat_id
+    chat_id = update.effective_chat.id
     sql = sqlite3.connect('endless.db')
     db = sql.cursor()
     msg = "<b>Futures</b>\n\n"
@@ -97,15 +105,16 @@ def futures(update, context):
         msg = msg + "<i>Contract amount:</i> " + format(full_price, ".2f")  + " " + currency + "\n"
         msg = msg + "<i>Free balance for contract:</i> " + format(free_balance, ".2f") + " " + currency + "\n"
         msg = msg + "Buy or sell /market_" + str(id) + "\n\n"
-    send_message_keyb(update, context, msg) 
-    sql.close()     
+    sql.close()   
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)   
 
 
-def market(update, context):
+async def market(update, context):
+    chat_id = update.effective_chat.id
     answer = re.findall(r"\/market_(.+)", update.message.text)
     if (len(answer) == 0):
         message = "Error!\nPossible commands:\n/market_X"
-        send_message_keyb(update, context, message)
+        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup) 
         return   
     id = int(answer[0])
     tg_id = update.message.chat_id
@@ -178,13 +187,13 @@ def market(update, context):
     if btn_close:    
         buttons.append(InlineKeyboardButton("Close position", callback_data="close_" + str(id)))
     keyboard.append(buttons)    
-    reply_markup = InlineKeyboardMarkup(keyboard)           
-    context.bot.send_message(chat_id=tg_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)
+    reply_markup = InlineKeyboardMarkup(keyboard)  
+    await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)          
     sql.close()           
 
 
-def echo(update, context):
-    update.message.reply_text("Use /help for help")
+async def echo(update, context):
+    await update.message.reply_text("Use /help for help")
 
 
 def error(update, context):
@@ -192,7 +201,7 @@ def error(update, context):
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 
-def buttons_actions(update, context):  
+async def buttons_actions(update, context):  
     sql = sqlite3.connect('endless.db')
     db = sql.cursor()    
     tg_id = update.callback_query.message.chat_id
@@ -266,51 +275,35 @@ def buttons_actions(update, context):
                 sql.commit()             
                 msg = msg + "\nYour Variation margin is " + format(diff, ".2f") + " USD" + "\nNew balance is " + format(new_balance, ".2f") + " USD" 
     # update msg
-    query.edit_message_text(text=msg, parse_mode='HTML')                      
-
-
-def send_message_keyb(update, context,  msg, chat_id_in=""):  
-    keyb = [["Portfolio", "Market", "Help"]]
-    reply_markup = ReplyKeyboardMarkup(keyb, resize_keyboard=True, one_time_keyboard=False)
-
-    if chat_id_in == "":
-        chat_id = update.message.chat_id
-    else:
-        chat_id = chat_id_in
-    context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)
-
+    await query.edit_message_text(text=msg, parse_mode='HTML')                      
+  
 
 def main():
 
-    updater = Updater(bot_key, use_context=True)
-	
-    dp = updater.dispatcher
+    application = ApplicationBuilder().token(bot_key).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("portfolio", portfolio))
-    dp.add_handler(CommandHandler("futures", futures))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help))
+    application.add_handler(CommandHandler("portfolio", portfolio))
+    application.add_handler(CommandHandler("futures", futures))
 
-    dp.add_handler(CallbackQueryHandler(buttons_actions))
+    application.add_handler(CallbackQueryHandler(buttons_actions))
 
-    set_handler = MessageHandler(Filters.regex(r"\/market_(.+)"), market)
-    dp.add_handler(set_handler)
+    set_handler = MessageHandler(filters.Regex(r"\/market_(.+)"), market)
+    application.add_handler(set_handler)
 
-    handler_1 = MessageHandler(Filters.regex(r"Portfolio"), portfolio)
-    dp.add_handler(handler_1) 
-    handler_2 = MessageHandler(Filters.regex(r"Market"), futures)
-    dp.add_handler(handler_2)
-    handler_4 = MessageHandler(Filters.regex(r"Help"), help)
+    handler_1 = MessageHandler(filters.Regex(r"Portfolio"), portfolio)
+    application.add_handler(handler_1) 
+    handler_2 = MessageHandler(filters.Regex(r"Market"), futures)
+    application.add_handler(handler_2) 
 
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), echo))
 
-    dp.add_handler(MessageHandler(Filters.text, echo))
+    application.add_handler(MessageHandler(filters.TEXT, echo))
 
-    dp.add_error_handler(error)
+    application.add_error_handler(error)
 
-    updater.start_polling()
-
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
