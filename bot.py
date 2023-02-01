@@ -74,7 +74,8 @@ async def portfolio(update, context):
         diff = (round(balance[3], 2) - round(balance[2], 2)) * balance[1]
         msg = msg +  "<i>Planning Variation margin (VM): " + format(diff, ".2f") + " " + balance[4] + "</i>\n"
         last_date = balance[5]
-    msg = msg + "\nPrice timestamp " + last_date
+    if len(rows) >0:
+        msg = msg + "\nPrice timestamp " + last_date
     sql.close() 
     await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML', reply_markup=reply_markup)
        
