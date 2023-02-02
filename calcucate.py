@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 import telegram
 import os
@@ -8,7 +9,7 @@ load_dotenv()
 #load variables
 bot_key = os.environ['BOT_KEY']
 
-def main():
+async def calcaulate_var_margin():
     diffs = {}
     vm = {}
     bot = telegram.Bot(token=bot_key)
@@ -54,8 +55,12 @@ def main():
             db.execute("update balances set amount = ? where id = ?", (new_balance, balance_id))
             sql.commit()             
             msg = "Your Variation margin is " + format(value, ".2f") + " USD" + "\nNew balance is " + format(new_balance, ".2f") + " USD"
-            bot.sendMessage(chat_id=int(key), text=msg)
+            await bot.sendMessage(chat_id=int(key), text=msg)
     sql.close()
+
+
+def main():
+    asyncio.run(calcaulate_var_margin())
 
 
 if __name__ == '__main__':
