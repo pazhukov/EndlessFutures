@@ -2,6 +2,8 @@
 
 An example of a futures trading bot.
 
+**The bot allows you to trade futures manually, as an alternative to an exchange terminal or an asset of a broker's application**
+
 ## SETUP
 
 1. rename .env.example to .env
@@ -34,3 +36,9 @@ Detail info how futures works [how futures works](https://www.investopedia.com/t
 ## Live Example
 
 Detail info how futures works [Endless Futures Bot](https://t.me/EndlessFutures_bot)
+
+## Possible improvements
+
+- [ ] Auto close position if balance less then blocked amount for futures contracts
+- [ ] Collect all variation margin calcs
+- [ ] Collect all trades
